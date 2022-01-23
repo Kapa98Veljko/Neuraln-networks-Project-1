@@ -1,120 +1,203 @@
 clc, clear, close all
 
-%%
+%% Ucitavanje podataka iz .csv dokumneta
 data = readtable('Genres.csv');
 
-input  = [data.danceability,data.energy,data.key,data.loudness,data.mode,data.speechiness,data.acousticness,data.instrumentalness,data.liveness,data.valence,data.tempo,];
+% Ucitavanje ulaza u vidu matrice iz .csv dokumenta
+input = [data.danceability,data.energy,data.key,data.loudness,data.mode,...
+         data.speechiness,data.acousticness,data.instrumentalness,...
+         data.liveness,data.valence,data.tempo,];
 
+% Ekstrakcija podataka i priprema za crtanje histograma
+% gde 1 oznacava "Rap",2 "Pop", a 3 "RnB" muzicki zanr
 output = zeros(length(data.genre),1);
 output(data.genre=="Rap") = 1;
 output(data.genre=="Pop") = 2;
 output(data.genre=="RnB") = 3;
 
+% Transponovanje tako da ulazi budu vrste, a u kolonama podaci za
+% odgovarajuci ulaz
 input  = input';
 output = output';
 
 
-%%Podela podataka po klasama
+% Podela podataka po klasama
 K1 = input(:,output==1);
 K2 = input(:,output==2);
 K3 = input(:,output==3);
 
-%%
+%% Prikaza raspodele odbiraka po klasama
 figure
 histogram(output);
 
-output = zeros(length(data.genre),3);
-output(data.genre=="Rap",1) = 1;
-output(data.genre=="Pop",2) = 1;
-output(data.genre=="RnB",3) = 1;
+%% Kodiranje izlaza kao one-hot encoding
+output_OH = zeros(length(data.genre),3);
+output_OH(data.genre=="Rap",1) = 1;
+output_OH(data.genre=="Pop",2) = 1;
+output_OH(data.genre=="RnB",3) = 1;
 
-input  = input';
-output = output'; 
+% Transponovanje matrice 
+output_OH = output_OH'; 
 
+%% Podela podataka ne-balansiranih klasa na trening,test i validacioni skup
+%  70% je trening, 15% je test, 15% je validacija
+
+%  Podela klase 1
 N1 = length(K1);
-K1trening = K1(:, 1 : cast(0.7*N1,'uint64'));
-K1test = K1(:,cast(0.7*N1+1,'uint64') : cast(0.85*N1,'uint64'));
-K1val = K1(:, cast(0.85*N1+1,'uint64') : N1);
-%%
+K1_training = K1(:, 1 : cast(0.7*N1,'uint16'));
+K1_test = K1(:,cast(0.7*N1+1,'uint16') : cast(0.85*N1,'uint16'));
+K1_val = K1(:, cast(0.85*N1+1,'uint16') : N1);
+
+%  Podela klase 2
 N2 = length(K2);
-K2trening = K2(:, 1 : cast(0.7*N2,'uint64'));
-K2test = K2(:,cast(0.7*N2+1,'uint64') : cast(0.85*N2,'uint64'));
-K2val = K2(:, cast(0.85*N2+1,'uint64') : N2);
+K2_training = K2(:, 1 : cast(0.7*N2,'uint16'));
+K2_test = K2(:,cast(0.7*N2+1,'uint16') : cast(0.85*N2,'uint16'));
+K2_val = K2(:, cast(0.85*N2+1,'uint16') : N2);
 
+%  Podela klase 3
 N3 = length(K3);
-K3trening = K3(:, 1 : cast(0.7*N3,'uint64'));
-K3test = K3(:,cast(0.7*N3+1,'uint64') : cast(0.85*N3,'uint64'));
-K3val = K3(:, cast(0.85*N3+1,'uint64') : N3);
+K3_training = K3(:, 1 : cast(0.7*N3,'uint16'));
+K3_test = K3(:,cast(0.7*N3+1,'uint16') : cast(0.85*N3,'uint16'));
+K3_val = K3(:, cast(0.85*N3+1,'uint16') : N3);
 
-input_trening=[K1trening,K2trening,K3trening];
-output_trening=output(:,1:length(K1trening));
-output_trening=[output_trening,output(:,1+N1:length(K2trening)+N1)];
-output_trening=[output_trening,output(:,1+N1+N2:length(K3trening)+N1+N2)];    
+%% Formiranje zajednockog trening, test i validacionog skupa
 
-input_val=[K1val,K2val,K3val];
-output_val=output(:,length(K1trening)+1:length(K1trening)+length(K1val));
-output_val=[output_val,output(:,1+N1+length(K2trening):N1+length(K2trening)+length(K2val))];
-output_val=[output_val,output(:,1+N1+N2+length(K3trening):length(K3trening)+N1+N2+length(K3val))];    
+N1_training_indx = length(K1_training);
+N2_training_indx = N1 + length(K2_training);
+N3_training_indx = N1 + N2 + length(K3_training);
 
-input_test=[K1test,K2test,K3test];
-output_test=[ones(1,cast(0.15*N1,'uint64')),ones(1,cast(0.15*N2,'uint64'))+1,ones(1,cast(0.15*N3,'uint64'))+2];
+N1_val_indx = N1_training_indx + length(K1_val);
+N2_val_indx = N2_training_indx + length(K2_val);
+N3_val_indx = N3_training_indx + length(K3_val);
 
-input_all=[input_trening,input_val];
-output_all=[output_trening,output_val];
+%  Ulaz trening
+input_training = [K1_training,K2_training,K3_training];
+
+%  Izlaz trening
+output_training = output_OH(:,1:N1_training_indx);
+output_training = [output_training,output_OH(:,N1+1:N2_training_indx)];
+output_training = [output_training,output_OH(:,N1+N2+1:N3_training_indx)];    
+
+%  Ulaz validacija
+input_val = [K1_val,K2_val,K3_val];
+
+%  Izlaz validacija
+output_val = output_OH(:,N1_training_indx+1:N1_val_indx);
+output_val = [output_val,output_OH(:,N2_training_indx+1:N2_val_indx)];
+output_val = [output_val,output_OH(:,N3_training_indx+1:N3_val_indx)];    
+
+%  Ulaz test
+input_test=[K1_test,K2_test,K3_test];
+
+%  Izlaz test
+output_test = output_OH(:,N1_val_indx+1:N1);
+output_test = [output_test,output_OH(:,N2_val_indx+1:N1+N2)];
+output_test = [output_test,output_OH(:,N3_val_indx+1:N1+N2+N3)];
+          
+input_all=[input_training,input_val];
+output_all=[output_training,output_val];
 
 %% Krosvalidacija
-arhitektura = [5,2];
-Abest = 0;
-F1best = 0;
-
-for reg = [0.1, 0.5, 0.9]
-    for w = [2, 5, 10]
-        for lr = [0.5, 0.05, 0.005]
-            %for arh = length(arhitektura)
+%arhitektura = {[8,5,3],[6,3,2],[7,5,3,2]};
+arhitektura = {[7,5,3]};
+arh_best = 0;
+A_best = 0;
+k1_best=0;
+k2_best=0;
+for reg = [0.1,0.2, 0.5]
+    for w = [2,3,5]
+        for k1 = [1.2, 1.3, 1.4]
+            for k2 = [0.1,0.2,0.3]
+                for arh = 1:length(arhitektura)
                 rng(5)
-                net = patternnet(arhitektura);
-
+                net = patternnet(arhitektura{arh});
+                
+                %delimo skup podataka po indeksima
                 net.divideFcn = 'divideind';
-                net.divideParam.trainInd = 1 : length(input_trening);
-                net.divideParam.valInd = length(input_trening)+1 : length(input_all);
+                %indeksi za trening podatke
+                net.divideParam.trainInd = 1 : length(input_training);
+                %indeksi za validacione podatke
+                net.divideParam.valInd = length(input_training)+1 :...
+                                                length(input_all);
+                %test podatke ne dajemo mrezi odmah                            
                 net.divideParam.testInd = [];
 
                 net.performParam.regularization = reg;
                 
-                net.trainFcn = 'traingd';
-
+                net.trainFcn = 'trainrp';
+                
+                %konstanta obucavanja
                 net.trainParam.lr = lr;
-                net.trainParam.epochs = 100;
+                %broj epoha obucavanja
+                net.trainParam.epochs = 500;
+                %masksimalna dozvoljena greska 
                 net.trainParam.goal = 1e-4;
-                net.trainParam.max_fail = 20;
+                net.trainParam.max_fail = 100;
+                %graficki prikaz obucavanja
                 net.trainParam.showWindow =true ;
 
-                weight = ones(1, length(output_all));
-                weight(output_all == 2) = w;
+                net.trainParam.delt_inc =k1;
+                net.trainParam.delt_dec=k2;  
+                net.trainParam.deltamax=40;
                 
-               [net, info] = train(net, input_all, output_all, [], [], weight);
-               
-               pred = sim(net,input_val);
-               pred = round(pred);
-               
-               [~, cm] = confusion(output_val, pred);
-               A = 100*sum(trace(cm))/sum(sum(cm));
-               F1 = 2*cm(2, 2)/(cm(2, 1)+cm(1, 2)+2*cm(2, 2));
+                
+                weight = ones(1, length(output_all));
+                weight(output_all(2,:) == 1) = w;
+                
+                [net, info] = train(net, input_all, output_all,[],[],weight);
+                %predikcija se vrsi na validacionim podacima jer oni nisu
+                %ucestvovali u obucavanju mreze
+                pred = sim(net,input_val);
+                pred = round(pred);
+                
+                %konfuziona matrica
+                [~, cm] = confusion(output_val, pred);
+                %Preciznost, procenat tacno klasifikovanih podatak kao suma
+                %elemenata na galvnoj dijagonali kroz suma svih elemenata
+                A = 100*sum(trace(cm))/sum(sum(cm));
 
-               disp(['Reg = ' num2str(reg) ', ACC = ' num2str(A) ', F1 = ' num2str(F1)])
-               disp(['LR = ' num2str(lr) ', epoch = ' num2str(info.best_epoch)])
+                disp(['Reg = ' num2str(reg) ', ACC = ' num2str(A) ])
+                disp(['epoch = ' num2str(info.best_epoch)])
 
-               if F1 > F1best
-                   F1best = F1;
-                   Abest = A;
-                   reg_best = reg;
-                   w_best = w;
-                   lr_best = lr;
-                   %arh_best = arhitektura{arh};
-                   ep_best = info.best_epoch;
+                if A > A_best
+                    A_best = A;
+                    reg_best = reg;
+                    w_best = w;
+                    k1_best=k1;
+                    k2_best=k2;
+                    arh_best = arhitektura{arh};
+                    ep_best = info.best_epoch;
                 end
-            %end
-        end
+                end
+            end
+         end
     end
 end
+%%
+net = patternnet(arh_best);
 
+net.divideFcn = '';
+
+net.performParam.regularization = reg_best;
+
+net.trainFcn = 'trainrp';
+
+net.trainParam.epochs = ep_best;
+net.trainParam.goal = 1e-4;
+net.trainParam.delt_inc =k1_best;
+net.trainParam.delt_dec=k2_best; 
+net.trainParam.deltamax=30;
+
+weight = ones(1, length(output_all));
+weight(output_all(:,2) == 1) = w_best;
+
+[net, info] = train(net, input_all, output_all,[],[],weight);
+
+%% Performanse NM
+pred = sim(net, input_test);
+figure, plotconfusion(output_test, pred);
+
+[~, cm] = confusion(output_test, pred);
+A = 100*sum(trace(cm))/sum(sum(cm));
+disp(['Reg = ' num2str(reg) ', ACC = ' num2str(A) ])
+disp(['epoch = ' num2str(info.best_epoch)])

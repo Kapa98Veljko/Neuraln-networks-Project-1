@@ -77,7 +77,7 @@ input_training = [K1_training,K2_training,K3_training];
 output_training = output_OH(:,1:N1_training_indx);
 output_training = [output_training,output_OH(:,N1+1:N2_training_indx)];
 output_training = [output_training,output_OH(:,N1+N2+1:N3_training_indx)];    
-
+                
 %  Ulaz validacija
 input_val = [K1_val,K2_val,K3_val];
 
@@ -97,17 +97,21 @@ output_test = [output_test,output_OH(:,N3_val_indx+1:N1+N2+N3)];
 input_all=[input_training,input_val];
 output_all=[output_training,output_val];
 
+weight = ones(3, length(output_all));
+weight(2,1294:1616) = 5;
+
 %% Krosvalidacija
-%arhitektura = {[8,5,3],[6,3,2],[7,5,3,2]};
-arhitektura = {[7,5,3]};
+%arhitektura = {[8,5,4],[6,3,2],[7,5,3,3]};
+arhitektura = {[100,50,40,10,10]};
 arh_best = 0;
 A_best = 0;
 k1_best=0;
 k2_best=0;
-for reg = [0.1,0.2, 0.5]
-    for w = [2,3,5]
-        for k1 = [1.2, 1.3, 1.4]
-            for k2 = [0.1,0.2,0.3]
+
+for reg = [0.1,0.2]
+    for w = [1.5,2,3,5,8]
+        for k1 = [1.1 ,1.2, 1.3]
+            for k2 = [0.2,0.3,0.5]
                 for arh = 1:length(arhitektura)
                 rng(5)
                 net = patternnet(arhitektura{arh});
@@ -127,22 +131,22 @@ for reg = [0.1,0.2, 0.5]
                 net.trainFcn = 'trainrp';
                 
                 %konstanta obucavanja
-                net.trainParam.lr = lr;
+                %net.trainParam.lr = lr;
                 %broj epoha obucavanja
-                net.trainParam.epochs = 500;
+                net.trainParam.epochs = 3000;
                 %masksimalna dozvoljena greska 
-                net.trainParam.goal = 1e-4;
-                net.trainParam.max_fail = 100;
+                net.trainParam.goal = 1e-2;
+                net.trainParam.max_fail = 300;
                 %graficki prikaz obucavanja
-                net.trainParam.showWindow =true ;
+                net.trainParam.showWindow =false ;
 
                 net.trainParam.delt_inc =k1;
                 net.trainParam.delt_dec=k2;  
                 net.trainParam.deltamax=40;
                 
                 
-                weight = ones(1, length(output_all));
-                weight(output_all(2,:) == 1) = w;
+                weight = ones(3, length(output_all));
+                weight(2,1294:1616)= w;
                 
                 [net, info] = train(net, input_all, output_all,[],[],weight);
                 %predikcija se vrsi na validacionim podacima jer oni nisu
@@ -156,9 +160,9 @@ for reg = [0.1,0.2, 0.5]
                 %elemenata na galvnoj dijagonali kroz suma svih elemenata
                 A = 100*sum(trace(cm))/sum(sum(cm));
 
-                disp(['Reg = ' num2str(reg) ', ACC = ' num2str(A) ])
-                disp(['epoch = ' num2str(info.best_epoch)])
-
+                disp(['Reg = ' num2str(reg) ', ACC = ' num2str(A) ',k1=' num2str(k1) ])
+                disp(['epoch = ' num2str(info.best_epoch) ',k2=' num2str(k2) ',w=' num2str(w)])
+                disp('---------------------');
                 if A > A_best
                     A_best = A;
                     reg_best = reg;
@@ -172,7 +176,9 @@ for reg = [0.1,0.2, 0.5]
             end
          end
     end
+
 end
+disp('Kraj');
 %%
 net = patternnet(arh_best);
 
@@ -183,13 +189,13 @@ net.performParam.regularization = reg_best;
 net.trainFcn = 'trainrp';
 
 net.trainParam.epochs = ep_best;
-net.trainParam.goal = 1e-4;
+net.trainParam.goal = 1e-2;
 net.trainParam.delt_inc =k1_best;
 net.trainParam.delt_dec=k2_best; 
-net.trainParam.deltamax=30;
+net.trainParam.deltamax=40;
 
-weight = ones(1, length(output_all));
-weight(output_all(:,2) == 1) = w_best;
+weight = ones(3, length(output_all));
+weight(2,1294:1616)= w_best;
 
 [net, info] = train(net, input_all, output_all,[],[],weight);
 
